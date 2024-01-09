@@ -13,11 +13,16 @@
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+#include <math.h>
+
+#include <fstream>
+#include <vector>
 
 // Direct X 함수
 #include <string>
 #include <wrl.h>
 #include <shellapi.h>
+
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <D3Dcompiler.h>
@@ -25,6 +30,7 @@
 #include <DirectXPackedVector.h>
 #include <DirectXColors.h>
 #include <DirectXCollision.h>
+
 #include <DXGIDebug.h>
 
 using namespace DirectX;
@@ -45,3 +51,9 @@ using Microsoft::WRL::ComPtr;
 #define FRAME_BUFFER_HEIGHT 400
 
 //#define _WITH_SWAPCHAIN_FULLSCREEN_STATE  // 전체화면으로 시작하기
+
+extern ID3D12Resource* CreateBufferResource(ID3D12Device* pd3dDevice,
+	ID3D12GraphicsCommandList* pd3dCommandList, void* pData, UINT nBytes, D3D12_HEAP_TYPE
+	d3dHeapType = D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATES d3dResourceStates =
+	D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, ID3D12Resource** ppd3dUploadBuffer =
+	NULL);
