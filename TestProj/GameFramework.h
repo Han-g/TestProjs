@@ -2,6 +2,7 @@
 
 #include "Timer.h"
 #include "Scene.h"
+#include "Camera.h"
 
 class GameFramework
 {
@@ -45,6 +46,8 @@ public:
 	void ChangeSwapChainState();
 
 	void MoveToNextFrame();
+
+	CCamera* m_pCamera = NULL;
 private:
 	HINSTANCE m_hInstance;
 	HWND m_hWnd;
@@ -93,8 +96,8 @@ private:
 	HANDLE m_hFenceEvent;
 
 	//뷰포트와 씨저 사각형이다. 
-	D3D12_VIEWPORT m_d3dViewport;
-	D3D12_RECT m_d3dScissorRect;
+	//D3D12_VIEWPORT m_d3dViewport;
+	//D3D12_RECT m_d3dScissorRect;
 
 	//다음은 게임 프레임워크에서 사용할 타이머이다. 
 	CGameTimer m_GameTimer;

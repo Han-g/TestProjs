@@ -23,6 +23,7 @@ public:
 	
 	//void PrepareRender(ID3D12GraphicsCommandList* pd3dCommandList);
 	void Render(ID3D12GraphicsCommandList* pd3dCommandList);
+	void Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera);
 
 	void ReleaseUploadBuffers();
 
@@ -37,8 +38,12 @@ public:
 	//ID3D12PipelineState *m_pd3dPipelineState = NULL;
 protected:
 	//씬은 셰이더들의 집합이다. 셰이더들은 게임 객체들의 집합이다. 
-	CShader **m_ppShaders = NULL;
-	int m_nShaders = 0;
+	//CShader **m_ppShaders = NULL;
+	//int m_nShaders = 0;
+	
+	//씬은 게임 객체들의 집합이다. 게임 객체는 셰이더를 포함한다. 
+	CGameObject **m_ppObjects = NULL;
+	int m_nObjects = 0;
 
 	ID3D12RootSignature* m_pd3dGraphicsRootSignature = NULL;
 };
