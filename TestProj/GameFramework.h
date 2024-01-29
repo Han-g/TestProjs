@@ -3,6 +3,7 @@
 #include "Timer.h"
 #include "Scene.h"
 #include "Camera.h"
+#include "Player.h"
 
 class GameFramework
 {
@@ -48,6 +49,8 @@ public:
 	void MoveToNextFrame();
 
 	CCamera* m_pCamera = NULL;
+	CPlayer* m_pPlayer = NULL;
+	
 private:
 	HINSTANCE m_hInstance;
 	HWND m_hWnd;
@@ -87,8 +90,6 @@ private:
 	ID3D12CommandAllocator* m_pd3dCommandAllocator;
 	ID3D12GraphicsCommandList* m_pd3dCommandList;
 
-	//그래픽스 파이프라인 상태 객체에 대한 인터페이스 포인터이다. 
-	ID3D12PipelineState* m_pd3dPipelineState;
 
 	//펜스 인터페이스 포인터, 펜스의 값, 이벤트 핸들이다. 
 	ID3D12Fence* m_pd3dFence;
@@ -99,11 +100,28 @@ private:
 	//D3D12_VIEWPORT m_d3dViewport;
 	//D3D12_RECT m_d3dScissorRect;
 
-	//다음은 게임 프레임워크에서 사용할 타이머이다. 
-	CGameTimer m_GameTimer;
-	//다음은 프레임 레이트를 주 윈도우의 캡션에 출력하기 위한 문자열이다. 
-	_TCHAR m_pszFrameRate[50];
-
 	CScene* m_pScene;
+	//CCamera* m_pCamera;
+
+#if defined(_DEBUG)
+	/* Debug Layer Interfaces */
+	ID3D12Debug* m_pd3dDebugController;
+#endif
+
+	/* 렌더링 파이프라인 관련 변수 */
+
+/* 렌더링 파이프라인 :
+	GPU를 사용하여 리소스 ( 정점 / 인덱스 , 텍스쳐 ) 를 2D 이미지로 렌더링 하는 과정 */
+	/* 정확히는 모니터에 출력 전까지의 과정 */
+	ID3D12PipelineState* m_pd3dPipelineState; // 파이프 라인의 상태를 나타내는 변수 
+
+	CGameTimer					m_GameTimer;
+	_TCHAR						m_pszFrameRate[50];
+
+	//플레이어 객체에 대한 포인터이다.
+	//m_pPlayer = NULL;
+
+	//마지막으로 마우스 버튼을 클릭할 때의 마우스 커서의 위치이다. 
+	POINT m_ptOldCursorPos;
 };
 

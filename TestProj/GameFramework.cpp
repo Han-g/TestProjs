@@ -59,32 +59,32 @@ bool GameFramework::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 void GameFramework::OnDestroy()
 {
 	WaitForGpuComplete(); //GPU가 모든 명령 리스트를 실행할 때 까지 기다린다. 
-	ReleaseObjects(); //게임 객체(게임 월드 객체)를 소멸한다. 
-	
-	::CloseHandle(m_hFenceEvent);
-	for (int i = 0; i < m_nSwapChainBuffers; i++) {
-		if (m_ppd3dRenderTargetBuffers[i]) { m_ppd3dRenderTargetBuffers[i]->Release(); }
-	}
+	ReleaseObjects();				// 객체를 없앤다.
 
-	if (m_pd3dRtvDescriptorHeap) m_pd3dRtvDescriptorHeap->Release();
-	if (m_pd3dDepthStencilBuffer) m_pd3dDepthStencilBuffer->Release();
-	if (m_pd3dDsvDescriptorHeap) m_pd3dDsvDescriptorHeap->Release();
-	if (m_pd3dCommandAllocator) m_pd3dCommandAllocator->Release();
-	if (m_pd3dCommandQueue) m_pd3dCommandQueue->Release();
-	if (m_pd3dPipelineState) m_pd3dPipelineState->Release();
-	if (m_pd3dCommandList) m_pd3dCommandList->Release();
-	if (m_pd3dFence) m_pd3dFence->Release();
+	::CloseHandle(m_hFenceEvent);	// 할당 받은 이벤트 핸들을 풀어준다.
 
-	m_pdxgiSwapChain->SetFullscreenState(FALSE, NULL);
-	if (m_pdxgiSwapChain) m_pdxgiSwapChain->Release();
-	if (m_pd3dDevice) m_pd3dDevice->Release();
-	if (m_pdxgiFactory) m_pdxgiFactory->Release();
 #if defined(_DEBUG)
-	IDXGIDebug1* pdxgiDebug = NULL;
-	DXGIGetDebugInterface1(0, __uuidof(IDXGIDebug1), (void**)&pdxgiDebug);
-	HRESULT hResult = pdxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_DETAIL);
-	pdxgiDebug->Release();
+	if (m_pd3dDebugController) m_pd3dDebugController->Release();
 #endif
+
+	for (int i = 0; i < m_nSwapChainBuffers; ++i)
+		if (m_ppd3dRenderTargetBuffers[i])
+			m_ppd3dRenderTargetBuffers[i]->Release();
+	if (m_pd3dRtvDescriptorHeap)	m_pd3dRtvDescriptorHeap->Release();
+
+	if (m_pd3dDepthStencilBuffer)	m_pd3dDepthStencilBuffer->Release();
+	if (m_pd3dDsvDescriptorHeap)	m_pd3dDsvDescriptorHeap->Release();
+
+	if (m_pd3dCommandAllocator)		m_pd3dCommandAllocator->Release();
+	if (m_pd3dCommandQueue)			m_pd3dCommandQueue->Release();
+	if (m_pd3dCommandList)			m_pd3dCommandList->Release();
+
+	if (m_pd3dFence)				m_pd3dFence->Release();
+
+	m_pdxgiSwapChain->SetFullscreenState(FALSE, NULL);	// Window모드로 바꿔준다. 
+	if (m_pdxgiSwapChain)			m_pdxgiSwapChain->Release();
+	if (m_pd3dDevice)				m_pd3dDevice->Release();
+	if (m_pdxgiFactory)				m_pdxgiFactory->Release();
 }
 
 void GameFramework::CreateSwapChain()
@@ -354,9 +354,12 @@ void GameFramework::OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM 
 	{
 	case WM_LBUTTONDOWN:
 	case WM_RBUTTONDOWN:
+		::SetCapture(hWnd);
+		::GetCursorPos(&m_ptOldCursorPos);
 		break;
 	case WM_LBUTTONUP:
 	case WM_RBUTTONUP:
+		::ReleaseCapture();
 		break;
 	case WM_MOUSEMOVE:
 		break;
@@ -378,6 +381,13 @@ void GameFramework::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPAR
 			break;
 		case VK_RETURN:
 			break;
+		case VK_F1:
+		case VK_F2:
+		case VK_F3:
+			if (m_pPlayer) m_pCamera = m_pPlayer->ChangeCamera((wParam - VK_F1 + 1), 
+				m_GameTimer.GetTimeElapsed());
+			break;
+
 		case VK_F8:
 			break;
 		case VK_F9:
@@ -419,6 +429,59 @@ LRESULT CALLBACK GameFramework::OnProcessingWindowMessage(HWND hWnd, UINT nMessa
 
 void GameFramework::ProcessInput()
 {
+	static UCHAR pKeyBuffer[256];
+	DWORD dwDirection = 0;
+	/*키보드의 상태 정보를 반환한다. 화살표 키(‘→’, ‘←’, ‘↑’, ‘↓’)를 누르면 
+	플레이어를 오른쪽/왼쪽(로컬 x-축), 앞/뒤(로컬 z-축)로 이동한다. 
+	‘Page Up’과 ‘Page Down’ 키를 누르면 플레이어를 위/아래(로컬 y-축)로 이동한다.*/
+	if (::GetKeyboardState(pKeyBuffer))
+	{
+		if (pKeyBuffer[VK_UP] & 0xF0) dwDirection |= DIR_FORWARD;
+		if (pKeyBuffer[VK_DOWN] & 0xF0) dwDirection |= DIR_BACKWARD;
+		if (pKeyBuffer[VK_LEFT] & 0xF0) dwDirection |= DIR_LEFT;
+		if (pKeyBuffer[VK_RIGHT] & 0xF0) dwDirection |= DIR_RIGHT;
+		if (pKeyBuffer[VK_PRIOR] & 0xF0) dwDirection |= DIR_UP;
+		if (pKeyBuffer[VK_NEXT] & 0xF0) dwDirection |= DIR_DOWN;
+	}
+
+	float cxDelta = 0.0f, cyDelta = 0.0f;
+	POINT ptCursorPos;
+	/*마우스를 캡쳐했으면 마우스가 얼마만큼 이동하였는 가를 계산한다. 
+	마우스 왼쪽 또는 오른쪽 버튼이 눌러질 때의 메시지(WM_LBUTTONDOWN, WM_RBUTTONDOWN)를 
+	처리할 때 마우스를 캡쳐하였다. 그러므로 마우스가 캡쳐된 것은 마우스 버튼이 눌려진 상태를 
+	의미한다. 마우스 버튼이 눌려진 상태에서 마우스를 좌우 또는 상하로 움직이면 플레이어를 
+	x-축 또는 y-축으로 회전한다.*/
+	if (::GetCapture() == m_hWnd)
+	{
+		//마우스 커서를 화면에서 없앤다(보이지 않게 한다).
+		::SetCursor(NULL);
+		//현재 마우스 커서의 위치를 가져온다. 
+		::GetCursorPos(&ptCursorPos);
+		//마우스 버튼이 눌린 상태에서 마우스가 움직인 양을 구한다. 
+		cxDelta = (float)(ptCursorPos.x - m_ptOldCursorPos.x) / 3.0f;
+		cyDelta = (float)(ptCursorPos.y - m_ptOldCursorPos.y) / 3.0f;
+		//마우스 커서의 위치를 마우스가 눌려졌던 위치로 설정한다. 
+		::SetCursorPos(m_ptOldCursorPos.x, m_ptOldCursorPos.y);
+	}
+	//마우스 또는 키 입력이 있으면 플레이어를 이동하거나(dwDirection) 회전한다(cxDelta 또는 cyDelta).
+	if ((dwDirection != 0) || (cxDelta != 0.0f) || (cyDelta != 0.0f))
+	{
+		if (cxDelta || cyDelta)
+		{
+			/*cxDelta는 y-축의 회전을 나타내고 cyDelta는 x-축의 회전을 나타낸다. 
+			오른쪽 마우스 버튼이 눌려진 경우 cxDelta는 z-축의 회전을 나타낸다.*/
+			if (pKeyBuffer[VK_RBUTTON] & 0xF0)
+				m_pPlayer->Rotate(cyDelta, 0.0f, -cxDelta);
+			else
+				m_pPlayer->Rotate(cyDelta, cxDelta, 0.0f);
+		}
+		/*플레이어를 dwDirection 방향으로 이동한다(실제로는 속도 벡터를 변경한다). 
+		이동 거리는 시간에 비례하도록 한다. 플레이어의 이동 속력은 (50/초)로 가정한다.*/
+		if (dwDirection) m_pPlayer->Move(dwDirection, 50.0f * m_GameTimer.GetTimeElapsed(),
+			true);
+	}
+	//플레이어를 실제로 이동하고 카메라를 갱신한다. 중력과 마찰력의 영향을 속도 벡터에 적용한다. 
+	if (m_pPlayer != NULL) { m_pPlayer->Update(m_GameTimer.GetTimeElapsed()); }
 }
 
 void GameFramework::AnimateObjects()
@@ -487,6 +550,9 @@ void GameFramework::FrameAdvance()
 	d3dRtvCPUDescriptorHandle.ptr += (m_nSwapChainBufferIndex * m_nRtvDescriptorIncrementSize);
 		//현재의 렌더 타겟에 해당하는 서술자의 CPU 주소(핸들)를 계산한다. 
 
+	float pfClearColor[4] = { 0.0f, 0.125f, 0.3f, 1.0f };
+	m_pd3dCommandList->ClearRenderTargetView(d3dRtvCPUDescriptorHandle,
+		pfClearColor/*Colors::Azure*/, 0, NULL);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE d3dDsvCPUDescriptorHandle =
 		m_pd3dDsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -495,11 +561,6 @@ void GameFramework::FrameAdvance()
 		&d3dDsvCPUDescriptorHandle);
 	//렌더 타겟 뷰(서술자)와 깊이-스텐실 뷰(서술자)를 출력-병합 단계(OM)에 연결한다. 
 	//렌더링 코드는 여기에 추가될 것이다. 
-	
-	float pfClearColor[4] = { 0.0f, 0.125f, 0.3f, 1.0f };
-	m_pd3dCommandList->ClearRenderTargetView(d3dRtvCPUDescriptorHandle, pfClearColor
-		/*Colors::Azure*/, 0, NULL);
-	//원하는 색상으로 렌더 타겟(뷰)을 지운다. 
 
 	m_pd3dCommandList->ClearDepthStencilView(d3dDsvCPUDescriptorHandle,
 	D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, NULL);
@@ -507,45 +568,30 @@ void GameFramework::FrameAdvance()
 
 	if (m_pScene) m_pScene->Render(m_pd3dCommandList, m_pCamera);
 
+	//3인칭 카메라일 때 플레이어가 항상 보이도록 렌더링한다. 
+#ifdef _WITH_PLAYER_TOP
+	//렌더 타겟은 그대로 두고 깊이 버퍼를 1.0으로 지우고 플레이어를 렌더링하면 
+	//플레이어는 무조건 그려질 것이다. 
+	m_pd3dCommandList->ClearDepthStencilView(d3dDsvCPUDescriptorHandle,
+	D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, NULL);
+#endif
+	//3인칭 카메라일 때 플레이어를 렌더링한다. 
+	if (m_pPlayer) m_pPlayer->Render(m_pd3dCommandList, m_pCamera);
 	d3dResourceBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	d3dResourceBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 	d3dResourceBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	m_pd3dCommandList->ResourceBarrier(1, &d3dResourceBarrier);
-	/*현재 렌더 타겟에 대한 렌더링이 끝나기를 기다린다. 
-	GPU가 렌더 타겟(버퍼)을 더 이상 사용하지 않으면 렌더 타겟의 상태는 
-	프리젠트 상태(D3D12_RESOURCE_STATE_PRESENT)로 바뀔 것이다.*/
-
+	
 	hResult = m_pd3dCommandList->Close();
-	//명령 리스트를 닫힌 상태로 만든다. 
-
-	ID3D12CommandList *ppd3dCommandLists[] = { m_pd3dCommandList };
-	m_pd3dCommandQueue->ExecuteCommandLists(_countof(ppd3dCommandLists), ppd3dCommandLists);
-	//명령 리스트를 명령 큐에 추가하여 실행한다. 
-
+	
+	ID3D12CommandList* ppd3dCommandLists[] = { m_pd3dCommandList };
+	m_pd3dCommandQueue->ExecuteCommandLists(1, ppd3dCommandLists);
+	
 	WaitForGpuComplete();
-	//GPU가 모든 명령 리스트를 실행할 때 까지 기다린다. 
-
-	/*
-	DXGI_PRESENT_PARAMETERS dxgiPresentParameters;
-	dxgiPresentParameters.DirtyRectsCount = 0;
-	dxgiPresentParameters.pDirtyRects = NULL;
-	dxgiPresentParameters.pScrollRect = NULL;
-	dxgiPresentParameters.pScrollOffset = NULL;
-	//m_pdxgiSwapChain->Present1(1, 0, &dxgiPresentParameters); 
-	스왑체인을 프리젠트한다. 프리젠트를 하면 현재 렌더 타겟(후면버퍼)의 내용이 
-	전면버퍼로 옮겨지고 렌더 타겟 인덱스가 바뀔 것이다.
-	m_nSwapChainBufferIndex = m_pdxgiSwapChain->GetCurrentBackBufferIndex();
-	*/
-
+	
 	m_pdxgiSwapChain->Present(0, 0);
-	/*현재의 프레임 레이트를 문자열로 가져와서 주 윈도우의 타이틀로 출력한다. 
-	m_pszBuffer 문자열이 "LapProject ("으로 초기화되었으므로 (m_pszFrameRate+12)에서부터 
-	프레임 레이트를 문자열로 출력하여 “ FPS)” 문자열과 합친다.
-	::_itow_s(m_nCurrentFrameRate, (m_pszFrameRate+12), 37, 10);
-	::wcscat_s((m_pszFrameRate+12), 37, _T(" FPS)"));*/
-
 	MoveToNextFrame();
-
+	
 	m_GameTimer.GetFrameRate(m_pszFrameRate + 12, 37);
 	::SetWindowText(m_hWnd, m_pszFrameRate);
 }
