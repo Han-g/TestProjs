@@ -179,9 +179,10 @@ namespace Vector3 {
 
 	/* 두 XMFLOAT3 형식의 Vector사이의 각을 구해주는 함수*/
 	inline float Angle(XMFLOAT3& xmf3Vector1, XMFLOAT3& xmf3Vector2) {
-		XMVECTOR float3 = XMLoadFloat3(&xmf3Vector1);
-		XMVECTOR vertor3 = XMLoadFloat3(&xmf3Vector2);
-		return(Angle(float3, vertor3));
+		XMVECTOR xmvvector1 = XMLoadFloat3(&xmf3Vector1);
+		XMVECTOR xmvvector2 = XMLoadFloat3(&xmf3Vector2);
+		return(Angle(xmvvector1, xmvvector2));
+
 	}
 
 	/* TransformNormal의 경우 w를 0으로 만들어준다 = 벡터 변환에 주로 쓰인다.*/
@@ -207,9 +208,8 @@ namespace Vector3 {
 
 	}
 	inline XMFLOAT3 TransformCoord(XMFLOAT3& xmf3Vector, XMFLOAT4X4& xmmtx4x4Matrix) {
-		XMFLOAT3 float3 = xmf3Vector;
-		XMMATRIX matrix = XMLoadFloat4x4(&xmmtx4x4Matrix);
-		return(TransformCoord(float3, matrix));
+		XMMATRIX loadmatrix = XMLoadFloat4x4(&xmmtx4x4Matrix);
+		return(TransformCoord(xmf3Vector, loadmatrix));
 
 	}
 }
